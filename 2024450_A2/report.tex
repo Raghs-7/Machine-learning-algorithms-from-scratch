@@ -1,0 +1,303 @@
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+
+\geometry{margin=1in}
+
+\title{MNIST Classification using PCA, FDA, LDA and QDA}
+\author{2024450}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+In this assignment we perform classification on a subset of the MNIST dataset. 
+Only the handwritten digits \textbf{0, 1 and 2} are considered. 
+
+The objective of this task is to:
+
+\begin{itemize}
+\item Reduce dimensionality using \textbf{Principal Component Analysis (PCA)}
+\item Perform discriminative projection using \textbf{Fisher Discriminant Analysis (FDA)}
+\item Compare classification performance of \textbf{Linear Discriminant Analysis (LDA)} and \textbf{Quadratic Discriminant Analysis (QDA)}
+\item Analyze the impact of PCA on classification accuracy
+\end{itemize}
+
+Each MNIST image has a resolution of $28\times28$ pixels which corresponds to $784$ features. Working in such a high dimensional space is computationally expensive, therefore dimensionality reduction techniques are applied before classification.
+
+\section{Dataset Description}
+
+The MNIST dataset consists of handwritten digit images ranging from 0 to 9. 
+In this experiment only the digits:
+
+\[
+\{0,1,2\}
+\]
+
+are used.
+
+For each class:
+
+\begin{itemize}
+\item 100 samples are randomly selected for training
+\item 100 samples are randomly selected for testing
+\end{itemize}
+
+Therefore,
+
+\[
+\text{Total Training Samples} = 300
+\]
+
+\[
+\text{Total Test Samples} = 300
+\]
+
+Each image is converted into a vector of size:
+
+\[
+784 = 28 \times 28
+\]
+
+Thus the training data matrix becomes:
+
+\[
+X \in \mathbb{R}^{784 \times 300}
+\]
+
+\section{Data Preprocessing}
+
+The following preprocessing steps were applied:
+
+\begin{enumerate}
+
+\item Images were converted to feature vectors by stacking pixels.
+\item Pixel values were normalized to the range:
+
+\[
+[0,1]
+\]
+
+using
+
+\[
+x = \frac{x}{255}
+\]
+
+\item The dataset was organized into the matrix:
+
+\[
+X \in \mathbb{R}^{784 \times 300}
+\]
+
+\end{enumerate}
+
+\section{Principal Component Analysis (PCA)}
+
+PCA is used to reduce dimensionality while preserving the maximum variance of the data.
+
+\subsection{Mean Calculation}
+
+The mean vector of the dataset is computed as
+
+\[
+\mu = \frac{1}{N}\sum_{i=1}^{N}x_i
+\]
+
+where $N=300$.
+
+\subsection{Mean Removal}
+
+The centered data matrix is obtained as
+
+\[
+X_c = X - \mu
+\]
+
+\subsection{Covariance Matrix}
+
+The covariance matrix is computed as
+
+\[
+S = \frac{X_c X_c^T}{N-1}
+\]
+
+\subsection{Eigen Decomposition}
+
+The eigenvectors and eigenvalues of the covariance matrix are computed:
+
+\[
+S u_i = \lambda_i u_i
+\]
+
+The eigenvectors are sorted in descending order of eigenvalues.
+
+\subsection{Dimensionality Reduction}
+
+The projection matrix is constructed using the top $p$ eigenvectors:
+
+\[
+U_p = [u_1,u_2,\dots,u_p]
+\]
+
+The transformed data is:
+
+\[
+Y = U_p^T X_c
+\]
+
+The value of $p$ is chosen such that at least \textbf{75\% variance} is retained.
+
+\section{Reconstruction}
+
+The reconstructed samples are obtained by
+
+\[
+\hat{X} = U_p Y + \mu
+\]
+
+The reconstruction error is measured using Mean Squared Error (MSE):
+
+\[
+MSE = \frac{1}{d}\sum_{i=1}^{d}(x_i - \hat{x}_i)^2
+\]
+
+Reconstruction results for five samples are shown in output
+
+
+\section{Fisher Discriminant Analysis (FDA)}
+
+FDA is used to find a projection that maximizes class separability.
+
+\subsection{Within Class Scatter}
+
+\[
+S_W = \sum_c \sum_{x_i \in C_c} (x_i - \mu_c)(x_i - \mu_c)^T
+\]
+
+\subsection{Between Class Scatter}
+
+\[
+S_B = \sum_c N_c(\mu_c - \mu)(\mu_c - \mu)^T
+\]
+
+where
+
+\begin{itemize}
+\item $\mu_c$ is the mean of class $c$
+\item $N_c$ is the number of samples in class $c$
+\end{itemize}
+
+\subsection{Optimal Projection}
+
+FDA finds projection matrix $W$ that maximizes:
+
+\[
+W = \arg\max \frac{\det(W^T S_B W)}{\det(W^T S_W W)}
+\]
+
+This leads to the generalized eigenvalue problem:
+
+\[
+S_W^{-1}S_B w = \lambda w
+\]
+
+The top eigenvectors form the projection matrix.
+
+\section{Classification}
+
+Two classifiers were evaluated.
+
+\subsection{Linear Discriminant Analysis (LDA)}
+
+The LDA discriminant function is:
+
+\[
+g_i(x) = x^T\Sigma^{-1}\mu_i - \frac{1}{2}\mu_i^T\Sigma^{-1}\mu_i
+\]
+
+where
+
+\begin{itemize}
+\item $\mu_i$ is the class mean
+\item $\Sigma$ is the shared covariance matrix
+\end{itemize}
+
+The predicted class is
+
+\[
+\hat{y} = \arg\max_i g_i(x)
+\]
+
+\subsection{Quadratic Discriminant Analysis (QDA)}
+
+QDA uses class-specific covariance matrices.
+
+The discriminant function is:
+
+\[
+g_i(x) =
+-\frac{1}{2}(x-\mu_i)^T\Sigma_i^{-1}(x-\mu_i)
+-\frac{1}{2}\log|\Sigma_i|
+\]
+
+\section{Accuracy Metric}
+
+Accuracy is defined as:
+
+\[
+Accuracy =
+\frac{\text{Number of Correct Predictions}}
+{\text{Total Number of Predictions}}
+\]
+
+Mathematically,
+
+\[
+Accuracy =
+\frac{1}{N}\sum_{i=1}^{N} I(\hat{y_i} = y_i)
+\]
+
+where $I$ is the indicator function.
+
+
+\section{Effect of PCA Variance}
+
+Experiments were conducted with:
+
+\begin{itemize}
+\item 75\% variance
+\item 90\% variance
+\item first two principal components
+\end{itemize}
+
+Higher variance generally retains more information, leading to improved classification performance. However, increasing dimensionality also increases computational cost.
+
+\section{Conclusion}
+
+In this assignment we implemented PCA and FDA for dimensionality reduction and compared LDA and QDA classifiers.
+
+Key observations:
+
+\begin{itemize}
+
+\item PCA successfully reduced the dimensionality of the dataset while retaining most of the variance.
+
+\item FDA provided better class separation because it explicitly maximizes between-class variance while minimizing within-class variance.
+
+\item LDA performed well when the covariance matrices of classes were similar.
+
+\item QDA was more flexible but slightly more sensitive to noise due to class-specific covariance estimation.
+
+\end{itemize}
+
+Overall, combining PCA with discriminant analysis provides an effective pipeline for classification of high-dimensional image data.
+
+\end{document}

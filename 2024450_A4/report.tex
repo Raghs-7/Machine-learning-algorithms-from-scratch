@@ -1,0 +1,205 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{parskip}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\titleformat{\section}{\large\bfseries}{Question \thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+
+\title{\textbf{Machine Learning Assignment Report}\\
+\large Ensemble Methods and Perceptron Learning}
+\author{Raghav Dhiman\\
+B.Tech CSE \& AI --- IIIT-Delhi (2024--2028)}
+\date{\today}
+
+\begin{document}
+
+%-----------------------------------------------------------------------
+\section{AdaBoost with Decision Stumps (Classification)}
+%-----------------------------------------------------------------------
+
+\subsection{Methodology}
+
+\textbf{Dataset Preparation:}
+MNIST digits 4 and 9 were loaded and labelled as $-1$ and $+1$ respectively. From the training set, 1000 samples per class were held out to form the validation set; the remaining samples constitute the training set. PCA was fitted \emph{only} on the training set and used to project both train and validation data to 5 dimensions.
+
+\textbf{AdaBoost Algorithm:}
+At each boosting round $t = 1, \ldots, 300$:
+\begin{enumerate}[nosep]
+  \item Grow a decision stump $h_t(x)$ on the \emph{weighted} training set. For each of the 5 dimensions, candidate split thresholds are mid-points between consecutive unique sorted values; up to 1000 mid-points per dimension are sampled for speed.
+  \item Compute weighted misclassification error:
+        $\varepsilon_t = \sum_i w_i \cdot \mathbf{1}[h_t(x_i) \neq y_i]$
+  \item Compute the tree weight:
+        $\alpha_t = \frac{1}{2}\ln\!\left(\frac{1 - \varepsilon_t}{\varepsilon_t}\right)$
+  \item Update and re-normalise sample weights:
+        $w_i \leftarrow w_i \exp(-\alpha_t y_i h_t(x_i))$
+\end{enumerate}
+Validation accuracy is recorded after every boosting round and the iteration that yields the highest validation accuracy is used to evaluate the test set.
+
+\subsection{Results}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{img1_adaboost_val.png}
+  \caption{Validation accuracy vs.\ number of AdaBoost trees (stumps).}
+  \label{fig:adaboost}
+\end{figure}
+
+\begin{itemize}[nosep]
+  \item \textbf{Best number of trees:} 1
+  \item \textbf{Test Accuracy:} $\approx 0.5841$ (58.41\%)
+\end{itemize}
+
+\subsection{Discussion}
+
+The validation accuracy peaks immediately at $t=1$ (single stump) and then sharply drops before plateauing around 0.551. This indicates that a single weighted stump is already picking up the most discriminative direction in the 5-D PCA space, but subsequent stumps (which focus on the residual hard examples) do not generalise — likely because the 5-dimensional projection discards too much class-discriminative information for further refinement via boosting. The test accuracy of $\approx58\%$ is only slightly above chance for a two-class problem, confirming that 5 PCA components are insufficient for digits 4 vs.\ 9 without deeper models.
+
+%-----------------------------------------------------------------------
+\section{Gradient Boosting with Decision Stumps (Regression/L2)}
+%-----------------------------------------------------------------------
+
+\subsection{Methodology}
+
+\textbf{Dataset Preparation:} Same PCA pre-processing as Question~1.
+
+\textbf{Gradient Boosting for Absolute Loss (via residuals):}
+At each iteration $t$:
+\begin{enumerate}[nosep]
+  \item Fit stump $h_t(x)$ to minimise SSR on the current pseudo-residuals (negative gradients of the loss).
+  \item Update the prediction: $F_t(x) = F_{t-1}(x) + \eta \cdot h_t(x)$
+  \item Compute new pseudo-residuals: $r_i = y_i - F_t(x_i)$
+\end{enumerate}
+Validation MSE is recorded after every iteration; the iteration with the lowest validation MSE determines the final model.
+
+\subsection{Results}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.80\textwidth]{img2_gbm_mse.png}
+  \caption{Validation MSE vs.\ number of gradient-boosting trees for various learning rates $\eta$.}
+  \label{fig:gbm}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Summary of results across learning rates.}
+\begin{tabular}{cccc}
+\toprule
+$\eta$ & Best Iteration & Test MSE \\
+\midrule
+0.001 & 98  & 0.9726 \\
+0.01  & 10  & 0.9722 \\
+0.1   & 1   & 0.9725 \\
+0.2   & 1   & 0.9647 \\
+0.5   & 1   & 1.0627 \\
+1.0   & 1   & 1.6213 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussion}
+
+\textbf{Trends and patterns:}
+
+\begin{itemize}
+  \item \textbf{Small $\eta$ (0.001):} The model learns slowly; validation MSE keeps decreasing well beyond 10 iterations before the best point is reached at iteration 98. Training MSE also descends slowly and the gap between train and validation MSE remains small — low variance, but slow convergence.
+
+  \item \textbf{Moderate $\eta$ (0.01--0.1):} The best performance is achieved with moderate learning rates. $\eta=0.2$ gives the lowest test MSE of 0.9647. A few iterations suffice and the model avoids both slow convergence and overshoot.
+
+  \item \textbf{Large $\eta$ ($\geq 0.5$):} The model immediately overshoots; validation MSE rises steeply from iteration 1, and the best iteration is trivially 1. The test MSE degrades significantly ($>1.0$). This is consistent with the gradient step being too large, causing oscillation around the minimum.
+
+  \item \textbf{General pattern:} Smaller learning rates require more trees to reach the optimal solution but yield more stable training curves. Larger learning rates converge in fewer trees but risk overshooting and diverging. The sweet spot ($\eta \approx 0.1$--$0.2$) balances speed and stability.
+\end{itemize}
+
+%-----------------------------------------------------------------------
+\section{Rosenblatt Perceptron}
+%-----------------------------------------------------------------------
+
+\subsection{Methodology}
+
+\textbf{Dataset Generation:}
+\begin{itemize}[nosep]
+  \item \textbf{Dataset A:} Class $-1$: $X \sim \mathcal{N}\!\left(\begin{bmatrix}-3\\-3\end{bmatrix}, I\right)$, Class $+1$: $X \sim \mathcal{N}\!\left(\begin{bmatrix}3\\3\end{bmatrix}, I\right)$; 200 samples per class.
+  \item \textbf{Dataset B:} Same means, covariance $3I$; 200 samples per class.
+\end{itemize}
+Both datasets use a 70-30 train-test split. All weights and biases are initialised to zero.
+
+\textbf{Perceptron Update Rule (implemented from scratch):}
+For each misclassified sample $(x_i, y_i)$:
+\[
+  w \leftarrow w + \eta \, y_i \, x_i, \qquad b \leftarrow b + \eta \, y_i
+\]
+with $\eta = 0.01$, up to 300 epochs. Early stopping is triggered if an entire epoch produces zero misclassifications.
+
+\subsection{Dataset A --- Linearly Separable}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img3_perceptron_a_errors.png}
+    \caption{Misclassified samples per epoch.}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img4_perceptron_a_boundary.png}
+    \caption{Learned decision boundary on training data.}
+  \end{subfigure}
+  \caption{Rosenblatt Perceptron --- Dataset A.}
+  \label{fig:percA}
+\end{figure}
+
+\begin{itemize}[nosep]
+  \item \textbf{Convergence epoch:} 2
+  \item \textbf{Test Accuracy:} 1.0 (100\%)
+\end{itemize}
+
+The perceptron converges in just 2 epochs because Dataset A is \emph{perfectly linearly separable} (unit covariance, well-separated means). Misclassifications drop linearly from epoch 0 to 1, hitting zero at epoch 2. The decision boundary cleanly separates the two Gaussian clusters.
+
+\subsection{Dataset B --- Overlapping Classes}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img5_perceptron_b_errors.png}
+    \caption{Misclassified samples per epoch (no convergence).}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img6_perceptron_b_boundary.png}
+    \caption{Learned decision boundary on training data.}
+  \end{subfigure}
+  \caption{Rosenblatt Perceptron --- Dataset B.}
+  \label{fig:percB}
+\end{figure}
+
+\begin{itemize}[nosep]
+  \item \textbf{Convergence:} Not observed (training ran for all 300 epochs)
+  \item \textbf{Test Accuracy:} $\approx 0.967$ (96.7\%)
+\end{itemize}
+
+\subsection{Discussion \& Justification}
+
+\begin{itemize}
+  \item \textbf{Dataset A converges rapidly} because the perceptron convergence theorem guarantees convergence in finite steps for linearly separable data. With large margin (distance between cluster centres = $\|\Delta\mu\|=6\sqrt{2}$) and tight clusters (covariance $I$), very few weight updates are needed.
+
+  \item \textbf{Dataset B never converges} because the larger covariance ($3I$) causes the two Gaussian clusters to \emph{overlap} near the boundary. Overlapping data is \textbf{not linearly separable}, so no single hyperplane can perfectly classify all training points, and the perceptron oscillates indefinitely, trying to correct each newly misclassified overlap sample.
+
+  \item \textbf{Error trajectory in Dataset B} oscillates chaotically between roughly 4--9 misclassifications across all 300 epochs, confirming that the weights cycle without settling.
+
+  \item \textbf{Test accuracy still at 96.7\%} for Dataset B: even though convergence is not achieved, the perceptron has learned a reasonable boundary. Since most of the class mass is still well-separated (overlap is only in the tails), the learned hyperplane correctly classifies the majority of test points.
+
+  \item \textbf{Key takeaway:} The Rosenblatt perceptron is guaranteed to converge \emph{only} for linearly separable datasets. When classes overlap, one should instead use soft-margin SVMs, logistic regression, or other models that tolerate non-separability.
+\end{itemize}
+
+\end{document}
